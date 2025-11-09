@@ -1,54 +1,67 @@
-module tb_rotation_engine;
-    reg clk, rst, start;
-    reg [7:0] angle;
-    wire [15:0] cos_out, sin_out;
-    wire done;
-   
-    rotation_engine engine (
+`timescale 1ns/1ps
+
+module tb_rotation_engine_0_90;
+
+    // Signals
+    reg clk;
+    reg rst_n;
+    reg [6:0] angle_deg; // 0–90 → needs 7 bits
+    wire [15:0] sin_q016, cos_q016, sum_q016;
+    wire signed [17:0] diff_q016;
+    wire valid;
+
+    // Instantiate DUT
+    rotation_engine_0_90 #(.USE_INIT_FILE(0)) dut (
         .clk(clk),
-        .rst(rst),
-        .angle(angle),
-        .start(start),
-        .cos_out(cos_out),
-        .sin_out(sin_out),
-        .done(done)
+        .rst_n(rst_n),
+        .angle_deg(angle_deg),
+        .sin_q016(sin_q016),
+        .cos_q016(cos_q016),
+        .sum_q016(sum_q016),
+        .diff_q016(diff_q016),
+        .valid(valid)
     );
-   
-    initial clk = 0;
-    always #5 clk = ~clk;
-   
+
+    // Clock generation: 10 ns period (100 MHz)
     initial begin
-        $display("Rotation Engine Test");
-        $display("==========================");
-        $display("Angle | Cos    | Sin");
-        $display("------|--------|--------");
-       
-        rst = 1; #20;
-        rst = 0; #10;
-       
-        angle = 0; start = 1; #10; start = 0; wait(done); #10;
-        $display("%3d   | %6d | %6d", angle, cos_out, sin_out);
-       
-        angle = 10; start = 1; #10; start = 0; wait(done); #10;
-        $display("%3d   | %6d | %6d", angle, cos_out, sin_out);
-       
-        angle = 30; start = 1; #10; start = 0; wait(done); #10;
-        $display("%3d   | %6d | %6d", angle, cos_out, sin_out);
-       
-        angle = 40; start = 1; #10; start = 0; wait(done); #10;
-        $display("%3d   | %6d | %6d", angle, cos_out, sin_out);
-       
-        angle = 45; start = 1; #10; start = 0; wait(done); #10;
-        $display("%3d   | %6d | %6d", angle, cos_out, sin_out);
-       
-        angle = 60; start = 1; #10; start = 0; wait(done); #10;
-        $display("%3d   | %6d | %6d", angle, cos_out, sin_out);
-       
-        angle = 70; start = 1; #10; start = 0; wait(done); #10;
-        $display("%3d   | %6d | %6d", angle, cos_out, sin_out);
-       
-        angle = 90; start = 1; #10; start = 0; wait(done); #10;
-        $display("%3d   | %6d | %6d", angle, cos_out, sin_out);
-       
+        clk = 0;
+        forever #5 clk = ~clk;
+    end
+
+    integer i;
+    integer abs_err, max_err;
+    real err_real;
+
+    // Test process
+    initial begin
+        $display("=== Rotation Engine Test (0–90°) ===");
+        rst_n = 0;
+        angle_deg = 0;
+        max_err = 0;
+
+        #20 rst_n = 1; // release reset
+        #10;
+
+        // Sweep all angles 0–90°
+        for (i = 0; i <= 90; i = i + 1) begin
+            angle_deg = i;
+            @(posedge clk);
+            #1; // wait a little for registered outputs
+
+            if (valid) begin
+                abs_err = (diff_q016 < 0) ? -diff_q016 : diff_q016;
+                if (abs_err > max_err)
+                    max_err = abs_err;
+
+                $display("Angle=%2d°  sin=%h  cos=%h  sum=%h  diff=%d",
+                         i, sin_q016, cos_q016, sum_q016, diff_q016);
+            end
+        end
+
+        err_real = max_err / (2.0**16 - 1.0);
+        $display("\nMax |sin^2 + cos^2 - 1| = %d (Q0.16 units) = %0.6f (real)", max_err, err_real);
+        $display("====================================");
         $finish;
     end
+
+endmodule
