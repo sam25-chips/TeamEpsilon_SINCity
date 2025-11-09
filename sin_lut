@@ -1,0 +1,136 @@
+module sin_from_cos(
+    input  wire [6:0] angle_deg,   // Valid 0 to 90
+    output reg  [15:0] sin_out     // Q1.15 signed output
+);
+
+    reg [15:0] cos_table [0:90];
+
+    initial begin
+        cos_table[0] = 16'b0111111111111111;
+        cos_table[1] = 16'b0111111111111010;
+        cos_table[2] = 16'b0111111111101011;
+        cos_table[3] = 16'b0111111111010010;
+        cos_table[4] = 16'b0111111110101111;
+        cos_table[5] = 16'b0111111110000010;
+        cos_table[6] = 16'b0111111101001011;
+        cos_table[7] = 16'b0111111100001010;
+        cos_table[8] = 16'b0111111011000000;
+        cos_table[9] = 16'b0111111001101100;
+        cos_table[10] = 16'b0111111000010000;
+        cos_table[11] = 16'b0111110110101100;
+        cos_table[12] = 16'b0111110100111111;
+        cos_table[13] = 16'b0111110011001011;
+        cos_table[14] = 16'b0111110001010000;
+        cos_table[15] = 16'b0111101111001111;
+        cos_table[16] = 16'b0111101101000111;
+        cos_table[17] = 16'b0111101010111001;
+        cos_table[18] = 16'b0111101000100110;
+        cos_table[19] = 16'b0111100110001110;
+        cos_table[20] = 16'b0111100011110001;
+        cos_table[21] = 16'b0111100001010000;
+        cos_table[22] = 16'b0111011110101100;
+        cos_table[23] = 16'b0111011100000100;
+        cos_table[24] = 16'b0111011001011001;
+        cos_table[25] = 16'b0111010110101100;
+        cos_table[26] = 16'b0111010011111100;
+        cos_table[27] = 16'b0111010001001011;
+        cos_table[28] = 16'b0111001110011010;
+        cos_table[29] = 16'b0111001011100111;
+        cos_table[30] = 16'b0111001000110100;
+        cos_table[31] = 16'b0111000101111111;
+        cos_table[32] = 16'b0111000011001011;
+        cos_table[33] = 16'b0111000000010111;
+        cos_table[34] = 16'b0110111101100011;
+        cos_table[35] = 16'b0110111010110000;
+        cos_table[36] = 16'b0110111000000000;
+        cos_table[37] = 16'b0110110101010001;
+        cos_table[38] = 16'b0110110010100100;
+        cos_table[39] = 16'b0110101111111010;
+        cos_table[40] = 16'b0110101101010011;
+        cos_table[41] = 16'b0110101010101111;
+        cos_table[42] = 16'b0110101000001111;
+        cos_table[43] = 16'b0110100101110011;
+        cos_table[44] = 16'b0110100011011011;
+        cos_table[45] = 16'b0110100001000111; // cos(45°) ~ 0.7071
+        cos_table[46] = 16'b0110011110111000;
+        cos_table[47] = 16'b0110011100101111;
+        cos_table[48] = 16'b0110011010101011;
+        cos_table[49] = 16'b0110011000101110;
+        cos_table[50] = 16'b0110010110110110;
+        cos_table[51] = 16'b0110010101000101;
+        cos_table[52] = 16'b0110010011011100;
+        cos_table[53] = 16'b0110010001111010;
+        cos_table[54] = 16'b0110010000100000;
+        cos_table[55] = 16'b0110001111001110;
+        cos_table[56] = 16'b0110001101110110;
+        cos_table[57] = 16'b0110001100100111;
+        cos_table[58] = 16'b0110001011100010;
+        cos_table[59] = 16'b0110001010100111;
+        cos_table[60] = 16'b0110001001110111;
+        cos_table[61] = 16'b0110001001010010;
+        cos_table[62] = 16'b0110001000111000;
+        cos_table[63] = 16'b0110001000101001;
+        cos_table[64] = 16'b0110001000100101;
+        cos_table[65] = 16'b0110001000101101;
+        cos_table[66] = 16'b0110001000111111;
+        cos_table[67] = 16'b0110001001011101;
+        cos_table[68] = 16'b0110001010000110;
+        cos_table[69] = 16'b0110001010111011;
+        cos_table[70] = 16'b0110001011111011;
+        cos_table[71] = 16'b0110001101000111;
+        cos_table[72] = 16'b0110001110011110;
+        cos_table[73] = 16'b0110010000000001;
+        cos_table[74] = 16'b0110010001101111;
+        cos_table[75] = 16'b0110010011101001;
+        cos_table[76] = 16'b0110010101101110;
+        cos_table[77] = 16'b0110011000000000;
+        cos_table[78] = 16'b0110011010011101;
+        cos_table[79] = 16'b0110011101000110;
+        cos_table[80] = 16'b0110011111111011;
+        cos_table[81] = 16'b0110100010111011;
+        cos_table[82] = 16'b0110100110000111;
+        cos_table[83] = 16'b0110101001011110;
+        cos_table[84] = 16'b0110101101000001;
+        cos_table[85] = 16'b0110110000101111;
+        cos_table[86] = 16'b0000100011101110;
+        cos_table[87] = 16'b0000011010110011;
+        cos_table[88] = 16'b0000010001111000;
+        cos_table[89] = 16'b0000001000111100;
+        cos_table[90] = 16'b0000000000000000;
+    end
+
+    always @(*) begin
+        sin_out = cos_table[90 - angle_deg];
+    end
+
+endmodule
+
+
+
+
+
+module tb_sin_lut;
+
+    reg  [6:0] angle_deg;    // input angle 0 to 90
+    wire [15:0] sin_out;     // output Q1.15 format
+
+    // Instantiate DUT
+    sin_lut dut (
+        .angle_deg(angle_deg),
+        .sin_out(sin_out)
+    );
+
+    initial begin
+        $display("Angle |   Sine (Hex, Q1.15)");
+        $display("---------------------------");
+
+        // Sweep from 0° to 90°
+        for (angle_deg = 0; angle_deg <= 90; angle_deg = angle_deg + 1) begin
+            #10; // Wait for lookup
+            $display("%3d   |   %h", angle_deg, sin_out);
+        end
+
+        $finish;
+    end
+
+endmodule
