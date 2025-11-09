@@ -1,0 +1,33 @@
+module tb_fixed_point_multiplier;
+    reg [3:0] a, b;
+    reg mode;
+    wire [3:0] product;
+   
+    // Instantiate the multiplier
+    fixed_point_multiplier uut (
+        .a(a),
+        .b(b),
+        .mode(mode),
+        .product(product)
+    );
+   
+    initial begin
+        $display("Testing Dual-Mode Fixed-Point Multiplier");
+        $display("===========================================");
+       
+        // Test Integer Mode (mode = 0)
+        $display("\nInteger Mode Tests:");
+        $display("Time\ta\tb\tmode\tproduct");
+        mode = 0;
+       
+        a = 4'd1; b = 4'd1; #10;
+        $display("%0t\t%d\t%d\t%d\t%d (1*1=1)", $time, a, b, mode, product);
+       
+        a = 4'd2; b = 4'd3; #10;
+        $display("%0t\t%d\t%d\t%d\t%d (2*3=6)", $time, a, b, mode, product);
+       
+        a = 4'd4; b = 4'd2; #10;
+        $display("%0t\t%d\t%d\t%d\t%d (4*2=8)", $time, a, b, mode, product);
+        $finish;
+    end
+endmodule 
