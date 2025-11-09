@@ -111,29 +111,3 @@ endmodule
 
 
 
-
-module tb_cosine_float;
-
-    reg  [7:0] addr;
-    wire [15:0] data;
-    real cos_val;
-
-    cosrom uut (
-        .addr(addr),
-        .data(data)
-    );
-
-    initial begin
-        $display("Angle | Q1.15 Value | Cosine (float)");
-        $display("-------------------------------------");
-
-        for (addr = 0; addr <= 8'd90; addr = addr + 1) begin
-            #100;
-             cos_val = $itor(data) / 32768.0;
-                $display("%3d   | %5d       | %f", addr, data, cos_val);
-        end
-
-        #100 $finish;
-    end
-
-endmodule
