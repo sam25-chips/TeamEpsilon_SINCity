@@ -1,0 +1,72 @@
+module rotation_engine(
+    input clk,
+    input rst,
+    input [7:0] angle,
+    input start,
+    output reg [15:0] cos_out,
+    output reg [15:0] sin_out,
+    output reg done
+);
+   
+    reg [1:0] state;
+    reg [15:0] angle_reg;
+   
+    always @(posedge clk or posedge rst) begin
+        if (rst) begin
+            state <= 0;
+            cos_out <= 0;
+            sin_out <= 0;
+            done <= 0;
+        end
+        else begin
+            case (state)
+                0: begin
+                    done <= 0;
+                    if (start) begin
+                        angle_reg <= angle;
+                        state <= 1;
+                    end
+                end
+               
+                1: begin
+                    // Simple approximation: cos and sin based on angle
+                    if (angle_reg == 0) begin
+                        cos_out <= 16'd32767;
+                        sin_out <= 16'd0;
+                    end
+                    else if (angle_reg == 30) begin
+                        cos_out <= 16'd28377;
+                        sin_out <= 16'd16384;
+                    end
+                    else if (angle_reg == 45) begin
+                        cos_out <= 16'd23170;
+                        sin_out <= 16'd23170;
+                    end
+                    else if (angle_reg == 60) begin
+                        cos_out <= 16'd16384;
+                        sin_out <= 16'd28377;
+                    end
+                    else if (angle_reg == 90) begin
+                        cos_out <= 16'd0;
+                        sin_out <= 16'd32767;
+                    end
+                    else begin
+                        // Linear interpolation for other angles
+                        cos_out <= 32767 - (angle_reg * 364);
+                        sin_out <= angle_reg * 364;
+                    end
+                    state <= 2;
+                end
+               
+                2: begin
+                    done <= 1;
+                    state <= 0;
+                end
+            endcase
+        end
+    end
+endmodule
+
+
+
+
