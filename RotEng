@@ -1,71 +1,111 @@
-module rotation_engine(
-    input clk,
-    input rst,
-    input [7:0] angle,
-    input start,
-    output reg [15:0] cos_out,
-    output reg [15:0] sin_out,
-    output reg done
+`timescale 1ns/1ps
+module rotation_engine_0_90 #(
+    parameter DATA_W = 16,
+    parameter ADDR_W = 7,            // 0–90 needs 7 bits
+    parameter USE_INIT_FILE = 1      // use memory files or generate inside
+)(
+    input  wire                 clk,
+    input  wire                 rst_n,
+    input  wire [ADDR_W-1:0]    angle_deg,   // 0–90°
+    output reg  [DATA_W-1:0]    sin_q016,    // LUT sine value (Q0.16)
+    output reg  [DATA_W-1:0]    cos_q016,    // LUT cosine value (Q0.16)
+    output reg  [DATA_W-1:0]    sum_q016,    // sin² + cos²
+    output reg  signed [17:0]   diff_q016,   // difference from 1.0 (Q0.16)
+    output reg                  valid
 );
-   
-    reg [1:0] state;
-    reg [15:0] angle_reg;
-   
-    always @(posedge clk or posedge rst) begin
-        if (rst) begin
-            state <= 0;
-            cos_out <= 0;
-            sin_out <= 0;
-            done <= 0;
-        end
-        else begin
-            case (state)
-                0: begin
-                    done <= 0;
-                    if (start) begin
-                        angle_reg <= angle;
-                        state <= 1;
-                    end
-                end
-               
-                1: begin
-                    // Simple approximation: cos and sin based on angle
-                    if (angle_reg == 0) begin
-                        cos_out <= 16'd32767;
-                        sin_out <= 16'd0;
-                    end
-                    else if (angle_reg == 30) begin
-                        cos_out <= 16'd28377;
-                        sin_out <= 16'd16384;
-                    end
-                    else if (angle_reg == 45) begin
-                        cos_out <= 16'd23170;
-                        sin_out <= 16'd23170;
-                    end
-                    else if (angle_reg == 60) begin
-                        cos_out <= 16'd16384;
-                        sin_out <= 16'd28377;
-                    end
-                    else if (angle_reg == 90) begin
-                        cos_out <= 16'd0;
-                        sin_out <= 16'd32767;
-                    end
-                    else begin
-                        // Linear interpolation for other angles
-                        cos_out <= 32767 - (angle_reg * 364);
-                        sin_out <= angle_reg * 364;
-                    end
-                    state <= 2;
-                end
-               
-                2: begin
-                    done <= 1;
-                    state <= 0;
-                end
-            endcase
+
+    // ---- LUTs ----
+    wire [DATA_W-1:0] sin_lut_data;
+    wire [DATA_W-1:0] cos_lut_data;
+
+    sin_cos_lut_0_90 #(
+        .DATA_W(DATA_W),
+        .ADDR_W(ADDR_W),
+        .USE_INIT_FILE(USE_INIT_FILE)
+    ) LUT (
+        .clk(clk),
+        .addr(angle_deg),
+        .sin_out(sin_lut_data),
+        .cos_out(cos_lut_data)
+    );
+
+    // ---- Core Computation ----
+    // Q0.16 × Q0.16 → Q0.32 → shift >>16 → Q0.16
+    wire [31:0] sin_sq_full = sin_lut_data * sin_lut_data;
+    wire [31:0] cos_sq_full = cos_lut_data * cos_lut_data;
+    wire [15:0] sin_sq_q016 = sin_sq_full[31:16];
+    wire [15:0] cos_sq_q016 = cos_sq_full[31:16];
+
+    wire [16:0] sum_q016_w = {1'b0, sin_sq_q016} + {1'b0, cos_sq_q016};
+    localparam [15:0] ONE_Q016 = 16'hFFFF;
+
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            sin_q016   <= 0;
+            cos_q016   <= 0;
+            sum_q016   <= 0;
+            diff_q016  <= 0;
+            valid      <= 0;
+        end else begin
+            sin_q016   <= sin_lut_data;
+            cos_q016   <= cos_lut_data;
+            sum_q016   <= sum_q016_w[15:0];
+            diff_q016  <= $signed({1'b0, sum_q016_w}) - $signed({2'b00, ONE_Q016});
+            valid      <= 1'b1;
         end
     end
+
 endmodule
+
+
+// ------------- Sine/Cosine LUT (0–90° only) -------------
+module sin_cos_lut_0_90 #(
+    parameter DATA_W = 16,
+    parameter ADDR_W = 7,
+    parameter USE_INIT_FILE = 1
+)(
+    input  wire                 clk,
+    input  wire [ADDR_W-1:0]    addr,
+    output reg  [DATA_W-1:0]    sin_out,
+    output reg  [DATA_W-1:0]    cos_out
+);
+
+    localparam DEPTH = 91;
+    reg [DATA_W-1:0] sin_mem [0:DEPTH-1];
+    reg [DATA_W-1:0] cos_mem [0:DEPTH-1];
+    integer i;
+    real r;
+
+    initial begin
+        if (USE_INIT_FILE) begin
+            $readmemh("sin_lut.mem", sin_mem);
+            $readmemh("cos_lut.mem", cos_mem);
+        end else begin
+            // generate table in simulation
+            for (i = 0; i < DEPTH; i = i + 1) begin
+                r = $sin(i * 3.14159265358979 / 180.0);
+                sin_mem[i] = $rtoi(r * (2.0**16 - 1.0) + 0.5);
+                r = $cos(i * 3.14159265358979 / 180.0);
+                cos_mem[i] = $rtoi(r * (2.0**16 - 1.0) + 0.5);
+            end
+        end
+    end
+
+    always @(posedge clk) begin
+        sin_out <= sin_mem[addr];
+        cos_out <= cos_mem[addr];
+    end
+
+endmodule 
+
+
+
+
+
+
+
+
+
 
 
 
