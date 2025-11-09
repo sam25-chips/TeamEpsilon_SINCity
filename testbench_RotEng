@@ -1,0 +1,54 @@
+module tb_rotation_engine;
+    reg clk, rst, start;
+    reg [7:0] angle;
+    wire [15:0] cos_out, sin_out;
+    wire done;
+   
+    rotation_engine engine (
+        .clk(clk),
+        .rst(rst),
+        .angle(angle),
+        .start(start),
+        .cos_out(cos_out),
+        .sin_out(sin_out),
+        .done(done)
+    );
+   
+    initial clk = 0;
+    always #5 clk = ~clk;
+   
+    initial begin
+        $display("Rotation Engine Test");
+        $display("==========================");
+        $display("Angle | Cos    | Sin");
+        $display("------|--------|--------");
+       
+        rst = 1; #20;
+        rst = 0; #10;
+       
+        angle = 0; start = 1; #10; start = 0; wait(done); #10;
+        $display("%3d   | %6d | %6d", angle, cos_out, sin_out);
+       
+        angle = 10; start = 1; #10; start = 0; wait(done); #10;
+        $display("%3d   | %6d | %6d", angle, cos_out, sin_out);
+       
+        angle = 30; start = 1; #10; start = 0; wait(done); #10;
+        $display("%3d   | %6d | %6d", angle, cos_out, sin_out);
+       
+        angle = 40; start = 1; #10; start = 0; wait(done); #10;
+        $display("%3d   | %6d | %6d", angle, cos_out, sin_out);
+       
+        angle = 45; start = 1; #10; start = 0; wait(done); #10;
+        $display("%3d   | %6d | %6d", angle, cos_out, sin_out);
+       
+        angle = 60; start = 1; #10; start = 0; wait(done); #10;
+        $display("%3d   | %6d | %6d", angle, cos_out, sin_out);
+       
+        angle = 70; start = 1; #10; start = 0; wait(done); #10;
+        $display("%3d   | %6d | %6d", angle, cos_out, sin_out);
+       
+        angle = 90; start = 1; #10; start = 0; wait(done); #10;
+        $display("%3d   | %6d | %6d", angle, cos_out, sin_out);
+       
+        $finish;
+    end
