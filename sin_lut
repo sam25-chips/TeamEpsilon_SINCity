@@ -109,28 +109,3 @@ endmodule
 
 
 
-module tb_sin_lut;
-
-    reg  [6:0] angle_deg;    // input angle 0 to 90
-    wire [15:0] sin_out;     // output Q1.15 format
-
-    // Instantiate DUT
-    sin_lut dut (
-        .angle_deg(angle_deg),
-        .sin_out(sin_out)
-    );
-
-    initial begin
-        $display("Angle |   Sine (Hex, Q1.15)");
-        $display("---------------------------");
-
-        // Sweep from 0° to 90°
-        for (angle_deg = 0; angle_deg <= 90; angle_deg = angle_deg + 1) begin
-            #10; // Wait for lookup
-            $display("%3d   |   %h", angle_deg, sin_out);
-        end
-
-        $finish;
-    end
-
-endmodule
