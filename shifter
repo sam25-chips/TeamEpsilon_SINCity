@@ -1,0 +1,247 @@
+module barrel_shifter #(
+ parameter DATA_WIDTH = 32,
+ parameter SHIFT_WIDTH = 5 // log2(DATA_WIDTH)
+)(
+ input wire clk,
+ input wire rst_n,
+ input wire [DATA_WIDTH-1:0] data_in,
+ input wire [SHIFT_WIDTH-1:0] shift_amount,
+ input wire [2:0] shift_mode, // 000:LSL, 001:LSR, 010:ASR, 011:ROL, 100:ROR
+ input wire shift_enable,
+ output reg [DATA_WIDTH-1:0] data_out,
+ output reg valid
+);
+
+ // Shift mode definitions
+ localparam LSL = 3'b000; 
+ localparam LSR = 3'b001; 
+ localparam ASR = 3'b010; 
+ localparam ROL = 3'b011; 
+ localparam ROR = 3'b100; 
+
+ wire [DATA_WIDTH-1:0] stage_out [SHIFT_WIDTH:0];
+ wire [DATA_WIDTH-1:0] prepared_data;
+ wire [DATA_WIDTH-1:0] shifted_result;
+ wire sign_bit;
+
+ assign sign_bit = data_in[DATA_WIDTH-1];
+
+
+ assign prepared_data = (shift_mode == LSL || shift_mode == ROL) ?
+ reverse_bits(data_in) : data_in;
+
+ assign stage_out[0] = prepared_data;
+
+ genvar i;
+ generate
+ for (i = 0; i < SHIFT_WIDTH; i = i + 1) begin : barrel_stages
+ wire [DATA_WIDTH-1:0] shift_value;
+ wire do_shift;
+
+ assign do_shift = shift_amount[i];
+
+ 
+ wire fill_bit;
+ assign fill_bit = (shift_mode == ASR) ? sign_bit :
+ (shift_mode == ROL || shift_mode == ROR) ? 1'b0 : 1'b0;
+
+
+ assign shift_value = (shift_mode == ROL || shift_mode == ROR) ?
+ {stage_out[i][DATA_WIDTH-(1<<i)-1:0], stage_out[i][DATA_WIDTH-1:DATA_WIDTH-(1<<i)]} :
+ {{(1<<i){fill_bit}}, stage_out[i][DATA_WIDTH-1:(1<<i)]};
+
+ assign stage_out[i+1] = do_shift ? shift_value : stage_out[i];
+ end
+ endgenerate
+
+ // Final output processing
+ assign shifted_result = (shift_mode == LSL || shift_mode == ROL) ?
+ reverse_bits(stage_out[SHIFT_WIDTH]) : stage_out[SHIFT_WIDTH];
+
+ // Register output for better timing
+ always @(posedge clk or negedge rst_n) begin
+ if (!rst_n) begin
+ data_out <= {DATA_WIDTH{1'b0}};
+ valid <= 1'b0;
+ end else if (shift_enable) begin
+ data_out <= shifted_result;
+ valid <= 1'b1;
+ end else begin
+ valid <= 1'b0;
+ end
+ end
+
+ // Function to reverse bits for left shifts
+ function [DATA_WIDTH-1:0] reverse_bits;
+ input [DATA_WIDTH-1:0] data;
+ integer j;
+ begin
+ for (j = 0; j < DATA_WIDTH; j = j + 1) begin
+ reverse_bits[j] = data[DATA_WIDTH-1-j];
+ end
+ end
+ endfunction
+
+endmodule
+
+
+// Optimized combinational barrel shifter (maximum speed, no registers)
+module barrel_shifter_comb #(
+ parameter DATA_WIDTH = 32,
+ parameter SHIFT_WIDTH = 5
+)(
+ input wire [DATA_WIDTH-1:0] data_in,
+ input wire [SHIFT_WIDTH-1:0] shift_amount,
+ input wire [2:0] shift_mode,
+ output wire [DATA_WIDTH-1:0] data_out
+);
+
+ localparam LSL = 3'b000;
+ localparam LSR = 3'b001;
+ localparam ASR = 3'b010;
+ localparam ROL = 3'b011;
+ localparam ROR = 3'b100;
+
+ wire [DATA_WIDTH-1:0] stage [SHIFT_WIDTH:0];
+ wire sign_bit;
+
+ assign sign_bit = data_in[DATA_WIDTH-1];
+ assign stage[0] = data_in;
+
+ genvar i;
+ generate
+ for (i = 0; i < SHIFT_WIDTH; i = i + 1) begin : shift_stages
+ localparam SHIFT_VAL = 1 << i;
+
+ assign stage[i+1] = shift_amount[i] ?
+ (shift_mode == LSL ? {stage[i][DATA_WIDTH-SHIFT_VAL-1:0], {SHIFT_VAL{1'b0}}} :
+ shift_mode == LSR ? {{SHIFT_VAL{1'b0}}, stage[i][DATA_WIDTH-1:SHIFT_VAL]} :
+ shift_mode == ASR ? {{SHIFT_VAL{sign_bit}}, stage[i][DATA_WIDTH-1:SHIFT_VAL]} :
+ shift_mode == ROL ? {stage[i][DATA_WIDTH-SHIFT_VAL-1:0], stage[i][DATA_WIDTH-1:DATA_WIDTH-SHIFT_VAL]} :
+ shift_mode == ROR ? {stage[i][SHIFT_VAL-1:0], stage[i][DATA_WIDTH-1:SHIFT_VAL]} :
+ stage[i]) : stage[i];
+ end
+ endgenerate
+
+ assign data_out = stage[SHIFT_WIDTH];
+
+endmodule
+
+
+
+
+
+
+
+
+
+module barrel_shifter_tb;
+
+ parameter DATA_WIDTH = 32;
+ parameter SHIFT_WIDTH = 5;
+
+ reg clk;
+ reg rst_n;
+ reg [DATA_WIDTH-1:0] data_in;
+ reg [SHIFT_WIDTH-1:0] shift_amount;
+ reg [2:0] shift_mode;
+ reg shift_enable;
+ wire [DATA_WIDTH-1:0] data_out;
+ wire valid;
+
+ // Instantiate registered barrel shifter
+ barrel_shifter #(
+ .DATA_WIDTH(DATA_WIDTH),
+ .SHIFT_WIDTH(SHIFT_WIDTH)
+ ) uut (
+ .clk(clk),
+ .rst_n(rst_n),
+ .data_in(data_in),
+ .shift_amount(shift_amount),
+ .shift_mode(shift_mode),
+ .shift_enable(shift_enable),
+ .data_out(data_out),
+ .valid(valid)
+ );
+
+ // Clock generation (100 MHz)
+ initial begin
+ clk = 0;
+ forever #5 clk = ~clk;
+ end
+
+ // Test stimulus
+ initial begin
+ $display("Starting Barrel Shifter Test");
+ $display("============================");
+
+ rst_n = 0;
+ data_in = 32'h0;
+ shift_amount = 5'h0;
+ shift_mode = 3'h0;
+ shift_enable = 0;
+
+ #20 rst_n = 1;
+
+ // Test LSL (Logical Shift Left)
+ #10;
+ data_in = 32'h0000FFFF;
+ shift_amount = 5'd8;
+ shift_mode = 3'b000;
+ shift_enable = 1;
+ #10 $display("LSL: %h << %d = %h", data_in, shift_amount, data_out);
+
+ // Test LSR (Logical Shift Right)
+ #10;
+ data_in = 32'hFFFF0000;
+ shift_amount = 5'd8;
+ shift_mode = 3'b001;
+ #10 $display("LSR: %h >> %d = %h", data_in, shift_amount, data_out);
+
+ // Test ASR (Arithmetic Shift Right)
+ #10;
+ data_in = 32'h80000000;
+ shift_amount = 5'd4;
+ shift_mode = 3'b010;
+ #10 $display("ASR: %h >>> %d = %h", data_in, shift_amount, data_out);
+
+ // Test ROL (Rotate Left)
+ #10;
+ data_in = 32'h12345678;
+ shift_amount = 5'd4;
+ shift_mode = 3'b011;
+ #10 $display("ROL: %h <<< %d = %h", data_in, shift_amount, data_out);
+
+ // Test ROR (Rotate Right)
+ #10;
+ data_in = 32'h12345678;
+ shift_amount = 5'd4;
+ shift_mode = 3'b100;
+ #10 $display("ROR: %h >>> %d = %h", data_in, shift_amount, data_out);
+
+ // Test variable shifts
+ #10;
+ data_in = 32'hAAAAAAAA;
+ shift_amount = 5'd1;
+ shift_mode = 3'b000;
+ #10 $display("LSL: %h << %d = %h", data_in, shift_amount, data_out);
+
+ #10;
+ shift_amount = 5'd16;
+ #10 $display("LSL: %h << %d = %h", data_in, shift_amount, data_out);
+
+ #10;
+ shift_enable = 0;
+
+ #20 $display("============================");
+ $display("Test Complete");
+ $finish;
+ end
+
+ // Performance monitoring
+ initial begin
+ $monitor("Time=%0t en=%b mode=%b amt=%d in=%h out=%h valid=%b",
+ $time, shift_enable, shift_mode, shift_amount, data_in, data_out, valid);
+ end
+
+endmodule
